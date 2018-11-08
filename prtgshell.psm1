@@ -193,7 +193,7 @@ function Get-PrtgServerStatus {
 			Return $QueryObject.Data.Status
 			break
 			
-			$Data = $QueryObject.Data.status.psobject.properties | ? { $_.TypeNameOfValue -eq "System.Xml.XmlElement" }
+			$Data = $QueryObject.Data.status.psobject.properties | Where-Object { $_.TypeNameOfValue -eq "System.Xml.XmlElement" }
 		
 			$ListOfNames = $Data | ForEach-Object { $_.Name }
 			$ListOfValues = $Data | ForEach-Object { $_.Value."#cdata-section" }
@@ -262,14 +262,14 @@ function Get-PrtgDeviceByHostname {
         Write-Warning "Unable to get the FQDN for $hostname, match likelihood reduced";
     }
     try{
-        $ipAddress = [System.Net.Dns]::GetHostAddresses($fqdn) | ?{$_.addressFamily -eq "InterNetwork"}; # Where IP address is ipv4
+        $ipAddress = [System.Net.Dns]::GetHostAddresses($fqdn) | Where-Object {$_.addressFamily -eq "InterNetwork"}; # Where IP address is ipv4
     }catch{
         Write-Warning "Unable to get the IP for $hostname, match likelihood reduced";
     }
 
 		Write-Verbose "$hostname - $fqdn - $ipAddress"
     # Search for a PRTG device that matches either the hostname, the IP, or the FQDN
-		$nameSearch = $prtgDeviceTree | ?{
+		$nameSearch = $prtgDeviceTree | Where-Object {
         $_.host -like $hostname -or 
         $_.host -eq $ipAddress -or 
         $_.host -eq $fqdn
@@ -348,7 +348,7 @@ function Get-PrtgObjectDetails {
 			$global:lasturl = $url
 					
 			$QueryObject = HelperHTTPQuery $url -AsXML
-			$Data = $QueryObject.Data.sensordata.psobject.properties | ? { $_.TypeNameOfValue -eq "System.Xml.XmlElement" }
+			$Data = $QueryObject.Data.sensordata.psobject.properties | Where-Object { $_.TypeNameOfValue -eq "System.Xml.XmlElement" }
 		
 			$ListOfNames = $Data | ForEach-Object { $_.Name }
 			$ListOfValues = $Data | ForEach-Object { $_.Value."#cdata-section" }
@@ -607,7 +607,7 @@ function Set-PrtgObjectProperty {
 			
 			$global:lasturl = $url
 			$QueryObject = (HelperHTTPQuery $url) -replace "<[^>]*?>|<[^>]*>", ""
-			return "" | select @{n='ObjectID';e={$ObjectId}},@{n='Property';e={$Property}},@{n='Value';e={$Value}},@{n='Response';e={$QueryObject}}
+			return "" | Select-Object @{n='ObjectID';e={$ObjectId}},@{n='Property';e={$Property}},@{n='Value';e={$Value}},@{n='Response';e={$QueryObject}}
 			# $global:Response = ($WebClient.DownloadString($url)) -replace "<[^>]*?>|<[^>]*>", ""
 			# return "" | select @{n='ObjectID';e={$ObjectId}},@{n='Property';e={$Property}},@{n='Value';e={$Value}},@{n='Response';e={$global:Response}}
     }
@@ -663,7 +663,7 @@ function Set-PrtgObjectGeo {
                 
 			$global:lasturl = $url
 			$QueryObject = (HelperHTTPQuery $url) -replace "<[^>]*?>|<[^>]*>", ""
-			return "" | select @{n='ObjectID';e={$ObjectId}},@{n='Property';e={$Property}},@{n='Value';e={$Value}},@{n='Response';e={$QueryObject}}
+			return "" | Select-Object @{n='ObjectID';e={$ObjectId}},@{n='Property';e={$Property}},@{n='Value';e={$Value}},@{n='Response';e={$QueryObject}}
 			# $global:Response = ($WebClient.DownloadString($url)) -replace "<[^>]*?>|<[^>]*>", ""
 			# return "" | select @{n='ObjectID';e={$ObjectId}},@{n='Property';e={$Property}},@{n='Value';e={$Value}},@{n='Response';e={$global:Response}}
     }
@@ -798,7 +798,7 @@ function Get-PrtgTableData {
 				$PRTGTableBuilder += $ThisRow
 			}
 			
-			$SelectedColumns = ($PRTGTableBuilder | ? { $_.content -eq $Content }).columns
+			$SelectedColumns = ($PRTGTableBuilder | Where-Object { $_.content -eq $Content }).columns
 		} else {
 			$SelectedColumns = $Columns
 		}
@@ -1201,14 +1201,14 @@ function Get-PrtgSensorHistoricData {
 		$QueryObject = HelperHTTPQuery $url -AsXML
 		$Data = $QueryObject.Data
 		
-		$ValidData = $Data.histdata.item | ? { $_.coverage_raw -ne '0000000000' }
+		$ValidData = $Data.histdata.item | Where-Object { $_.coverage_raw -ne '0000000000' }
 
 		$DataPoints = @()
 
 		foreach ($v in $ValidData) {
 			$Channels = @()
 			foreach ($val in $v.value) {
-				$NewChannel          = "" | Select Channel,Value
+				$NewChannel          = "" | Select-Object Channel,Value
 				$NewChannel.Channel  = $val.channel
 				$NewChannel.Value    = $val.'#text'
 				$Channels           += $NewChannel
@@ -1216,13 +1216,13 @@ function Get-PrtgSensorHistoricData {
 
 			$ChannelsRaw = @()
 			foreach ($vr in $v.value_raw) {
-				$NewChannel          = "" | Select Channel,Value
+				$NewChannel          = "" | Select-Object Channel,Value
 				$NewChannel.Channel  = $vr.channel
 				$NewChannel.Value    = [double]$vr.'#text'
 				$ChannelsRaw        += $NewChannel
 			}
 
-			$New             = "" | Select DateTime,Channels,ChannelsRaw
+			$New             = "" | Select-Object DateTime,Channels,ChannelsRaw
 			$New.Datetime    = [DateTime]::Parse(($v.datetime.split("-"))[0]) # need to do a datetime conversion here
 			$New.Channels    = $Channels
 			$New.ChannelsRaw = $ChannelsRaw
@@ -1257,16 +1257,16 @@ function Measure-PRTGStorage {
 	$HistorySensorData = Get-PrtgSensorHistoricData $HistorySensorObjectId $HistoryInDays
 
 	$OldestDataPointDate = $HistorySensorData[0].DateTime
-	$OldestDataPointSize = ($HistorySensorData[0].ChannelsRaw | ? { $_.Channel -match "History Size$" }).Value
+	$OldestDataPointSize = ($HistorySensorData[0].ChannelsRaw | Where-Object { $_.Channel -match "History Size$" }).Value
 
 	$NewestDataPointDate = $HistorySensorData[$HistorySensorData.Count-1].DateTime
-	$NewestDataPointSize = ($HistorySensorData[$HistorySensorData.Count-1].ChannelsRaw | ? { $_.Channel -match "History Size$" }).Value
+	$NewestDataPointSize = ($HistorySensorData[$HistorySensorData.Count-1].ChannelsRaw | Where-Object { $_.Channel -match "History Size$" }).Value
 
 	$HistorySizeGain = $NewestDataPointSize - $OldestDataPointSize
 	$MeasuredPeriod = $NewestDataPointDate - $OldestDataPointDate
 
 	$DailyGrowthRate = $HistorySizeGain / $MeasuredPeriod.TotalDays
-	$RemainingDiskFree = ($HistorySensorData[$HistorySensorData.Count-1].ChannelsRaw | ? { $_.Channel -match "Disk Free$" }).Value
+	$RemainingDiskFree = ($HistorySensorData[$HistorySensorData.Count-1].ChannelsRaw | Where-Object { $_.Channel -match "Disk Free$" }).Value
 	$MonitorableDaysAtCurrentGrowthRate = $RemainingDiskFree / $DailyGrowthRate
 
 	if ($MonitorableDaysAtCurrentGrowthRate) {
@@ -1679,7 +1679,7 @@ function Remove-PrtgSensorNumbers {
 		
 		if ($ObjectType -eq "device") {
 
-			$ObjectSensors = Get-PrtgTableData sensors $ObjectId | select objid,sensor
+			$ObjectSensors = Get-PrtgTableData sensors $ObjectId | Select-Object objid,sensor
 			$regex = [regex]"\s\d+$"
 
 			foreach ($Sensor in $ObjectSensors) {
@@ -1689,7 +1689,7 @@ function Remove-PrtgSensorNumbers {
 					$ReturnName = $Sensor.sensor + " -> " + $SensorName
 					$ReturnValue = $(Set-PrtgObjectProperty -ObjectId $Sensor.objid -Property name -Value $SensorName) -replace "<[^>]*?>|<[^>]*>", ""
 					
-					"" | Select @{n='Name Change';e={$ReturnName}},@{n='Return Code';e={$ReturnValue}}
+					"" | Select-Object @{n='Name Change';e={$ReturnName}},@{n='Return Code';e={$ReturnValue}}
 				}
 			}
 		} else {
@@ -2084,7 +2084,7 @@ function HelperFormatTest {
 	$URLKeeper = $global:lasturl
 	
 	$CoreHealthChannels = Get-PrtgSensorChannels 1002
-	$HealthPercentage = $CoreHealthChannels | ? {$_.name -eq "Health" }
+	$HealthPercentage = $CoreHealthChannels | Where-Object {$_.name -eq "Health" }
 	$ValuePretty = [int]$HealthPercentage.lastvalue.Replace("%","")
 	$ValueRaw = [int]$HealthPercentage.lastvalue_raw
 	
